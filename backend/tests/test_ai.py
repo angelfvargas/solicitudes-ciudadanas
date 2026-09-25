@@ -82,3 +82,46 @@ def test_redact():
 def test_status_never_exposes_the_key(client, citizen):
     body = client.get("/api/ai/status", headers=citizen).json()
     assert body["enabled"] is False and "key" not in str(body).lower()
+
+
+class _Resp:
+    def __init__(self, status, payload=None):
+        self.status_code, self._payload = status, payload or {}
+
+    def json(self):
+        return self._payload
+
+
+def _ok(text):
+    return _Resp(200, {"candidates": [{"content": {"parts": [{"text": text}]}}]})
+
+
+def test_gemini_falls_back_to_next_model_when_busy(monkeypatch):
+    from app.services.ai import gemini_provider
+    calls = []
+
+    def fake_post(url, **_):
+        calls.append(url)
+        return _Resp(503) if "modelo-a" in url else _ok('{"x": 1}')
+
+    monkeypatch.setattr(gemini_provider.httpx, "post", fake_post)
+    provider = gemini_provider.GeminiProvider("k", "modelo-a, modelo-b", 5)
+    assert provider.generate_json("s", "u", {}) == '{"x": 1}'
+    assert provider.model_name == "modelo-b" and len(calls) == 2
+
+
+def test_gemini_all_models_busy_raises_unavailable(monkeypatch):
+    from app.services.ai import gemini_provider
+    monkeypatch.setattr(gemini_provider.httpx, "post", lambda url, **_: _Resp(503))
+    provider = gemini_provider.GeminiProvider("k", "modelo-a,modelo-b", 5)
+    with pytest.raises(AIUnavailableError, match="saturado"):
+        provider.generate_json("s", "u", {})
+
+
+def test_gemini_rejected_key_does_not_retry(monkeypatch):
+    from app.services.ai import gemini_provider
+    calls = []
+    monkeypatch.setattr(gemini_provider.httpx, "post", lambda url, **_: calls.append(url) or _Resp(401))
+    with pytest.raises(AIUnavailableError, match="rechazó"):
+        gemini_provider.GeminiProvider("k", "modelo-a,modelo-b", 5).generate_json("s", "u", {})
+    assert len(calls) == 1

@@ -22,4 +22,4 @@ def ai_status():
     settings = get_settings()
     enabled = bool(settings.gemini_api_key)
     return {"enabled": enabled, "provider": "Google Gemini" if enabled else None,
-            "model": settings.gemini_model if enabled else None}
+            "model": settings.gemini_model.split(",")[0].strip() if enabled else None}

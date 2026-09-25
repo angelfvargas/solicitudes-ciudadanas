@@ -24,7 +24,7 @@ Es la prueba técnica para el cargo de Practicante de Desarrollo de Software en 
 | Frontend | **React 19 + TypeScript (modo estricto) + Vite** | Lo recomienda la prueba. El tipado estricto detecta errores al compilar. |
 | Seguridad | **bcrypt** (contraseñas) + **JWT** (sesión) | Estándar, sin estado en el servidor. |
 | IA (opcional) | **Google Gemini** (`gemini-2.5-flash`) por su API REST | Tiene capa gratuita y admite respuesta en JSON con esquema. |
-| Pruebas | **pytest** | 34 pruebas de API sobre SQLite en memoria (rápidas, sin servidor). |
+| Pruebas | **pytest** | 37 pruebas de API sobre SQLite en memoria (rápidas, sin servidor). |
 
 ## 2. Arquitectura: monolito en capas, patrón MVC
 
@@ -110,7 +110,7 @@ cp backend/.env.example backend/.env
 | `JWT_SECRET` | sí | Secreto para firmar los tokens, **mínimo 32 caracteres** (la app no arranca con uno más corto). Genérelo con `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `JWT_EXPIRE_MINUTES` | no | Duración de la sesión (60 por defecto) |
 | `GEMINI_API_KEY` | no | Llave de [Google AI Studio](https://aistudio.google.com/apikey). Sin ella, la app funciona igual y la categoría se elige a mano. |
-| `GEMINI_MODEL` | no | `gemini-2.5-flash` por defecto |
+| `GEMINI_MODEL` | no | Uno o varios modelos separados por coma, en orden de preferencia (respaldo si uno está saturado). `gemini-2.5-flash` por defecto |
 
 El archivo `.env` está en `.gitignore`. **Ninguna clave está en el código.**
 
@@ -165,7 +165,7 @@ Abrir **http://localhost:5173**. Vite reenvía `/api` al backend.
 ```bash
 cd backend && pytest
 ```
-34 pruebas: registro y duplicados, login, permisos por rol, la situación de cambiar el id en
+37 pruebas: registro y duplicados, login, permisos por rol, la situación de cambiar el id en
 la URL, la transición Registrada → Cerrada, el ciclo de vida completo con su historial,
 asignación y reasignación, filtros, y la IA (respuestas inválidas, servicio caído y datos
 personales que no deben salir).
@@ -240,7 +240,7 @@ cada campo.
 |---|---|
 | **Clasificación con IA** (alternativa A) | El ciudadano no siempre sabe si su caso es queja, reclamo o petición. Una mala clasificación retrasa la atención; la prioridad sugerida ayuda a atender primero lo urgente. |
 | **Tablero con estadísticas** | Muestra de un vistazo cuántas solicitudes hay por estado y cuántas siguen **sin funcionario**, que son las que están represadas. |
-| **Pruebas automatizadas** (34) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
+| **Pruebas automatizadas** (37) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
 | **Paginación y filtros en la URL** | Los listados no cargan todo de golpe, y un filtro se puede compartir o recargar. |
 | **Swagger / OpenAPI** | Documentación viva de la API en `/api/docs`. |
 | **Manejo de errores centralizado** | Todos los errores tienen el mismo formato, y el frontend los muestra por campo. |
@@ -253,7 +253,10 @@ cada campo.
    límite de 20 s. El navegador nunca habla con Gemini ni ve la llave. La llave va en una
    cabecera HTTP, no en la URL, para que no quede en los logs.
 3. **Credenciales:** solo en la variable de entorno `GEMINI_API_KEY`, nunca en el código.
-4. **Si falla:** si no hay llave, se agota el tiempo o el servicio se cae, se responde **503**
+4. **Si falla:** la capa gratuita de Gemini se satura con frecuencia (errores 503/429).
+   `GEMINI_MODEL` admite varios modelos separados por coma, y si uno está saturado se prueba el
+   siguiente (`./configurar_ia.sh` deja esa lista armada con los modelos que respondieron). Si
+   no hay llave, si todos los modelos fallan o si el servicio se cae, se responde **503**
    con un mensaje, y el formulario sigue funcionando para clasificar a mano. La IA nunca
    bloquea el registro.
 5. **Validación de la respuesta:** se pide JSON con esquema (`responseSchema`) y aun así se

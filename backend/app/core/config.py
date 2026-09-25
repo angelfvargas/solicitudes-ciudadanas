@@ -19,8 +19,8 @@ class Settings(BaseSettings):
 
     # IA (opcional). Sin llave, la funcionalidad de IA responde 503 y el resto del sistema sigue igual.
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
-    ai_timeout_seconds: float = 20.0
+    gemini_model: str = "gemini-2.5-flash"  # admite varios separados por coma (respaldo)
+    ai_timeout_seconds: float = 12.0
 
     cors_origins: list[str] = ["http://localhost:5173"]
     # Carpeta con el build de React. Si existe, el backend la sirve (despliegue monolítico).
