@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secretos: nunca al repositorio
+.env
+!.env.example
+
+# Base de datos local de desarrollo (scripts/dev_postgres.py)
+.pgdata/
+
+# Frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
