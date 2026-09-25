@@ -24,7 +24,7 @@ Es la prueba técnica para el cargo de Practicante de Desarrollo de Software en 
 | Frontend | **React 19 + TypeScript (modo estricto) + Vite** | Lo recomienda la prueba. El tipado estricto detecta errores al compilar. |
 | Seguridad | **bcrypt** (contraseñas) + **JWT** (sesión) | Estándar, sin estado en el servidor. |
 | IA (opcional) | **Google Gemini** (`gemini-2.5-flash`) por su API REST | Tiene capa gratuita y admite respuesta en JSON con esquema. |
-| Pruebas | **pytest** | 33 pruebas de API sobre SQLite en memoria (rápidas, sin servidor). |
+| Pruebas | **pytest** | 34 pruebas de API sobre SQLite en memoria (rápidas, sin servidor). |
 
 ## 2. Arquitectura: monolito en capas, patrón MVC
 
@@ -136,6 +136,14 @@ prueba. Se puede correr varias veces sin duplicar nada.
 
 ## 6. Ejecución
 
+### Atajo (Linux/macOS)
+```bash
+./iniciar.sh            # base de datos + API + web en http://localhost:8000, con IA si hay llave
+./iniciar.sh sin-ia     # igual, pero sin IA
+./configurar_ia.sh      # guarda la llave de Gemini en backend/.env y la prueba (no se muestra en pantalla)
+```
+El formulario de nueva solicitud indica si la IA está activa o no.
+
 ### Modo monolito (un solo proceso)
 ```bash
 cd frontend && npm run build && cd ..
@@ -157,7 +165,7 @@ Abrir **http://localhost:5173**. Vite reenvía `/api` al backend.
 ```bash
 cd backend && pytest
 ```
-33 pruebas: registro y duplicados, login, permisos por rol, la situación de cambiar el id en
+34 pruebas: registro y duplicados, login, permisos por rol, la situación de cambiar el id en
 la URL, la transición Registrada → Cerrada, el ciclo de vida completo con su historial,
 asignación y reasignación, filtros, y la IA (respuestas inválidas, servicio caído y datos
 personales que no deben salir).
@@ -232,7 +240,7 @@ cada campo.
 |---|---|
 | **Clasificación con IA** (alternativa A) | El ciudadano no siempre sabe si su caso es queja, reclamo o petición. Una mala clasificación retrasa la atención; la prioridad sugerida ayuda a atender primero lo urgente. |
 | **Tablero con estadísticas** | Muestra de un vistazo cuántas solicitudes hay por estado y cuántas siguen **sin funcionario**, que son las que están represadas. |
-| **Pruebas automatizadas** (33) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
+| **Pruebas automatizadas** (34) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
 | **Paginación y filtros en la URL** | Los listados no cargan todo de golpe, y un filtro se puede compartir o recargar. |
 | **Swagger / OpenAPI** | Documentación viva de la API en `/api/docs`. |
 | **Manejo de errores centralizado** | Todos los errores tienen el mismo formato, y el frontend los muestra por campo. |

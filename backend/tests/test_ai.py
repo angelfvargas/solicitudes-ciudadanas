@@ -77,3 +77,8 @@ def test_personal_data_is_not_sent_to_the_model(client, citizen, use_provider):
 
 def test_redact():
     assert redact("CC 1144555666 y correo a@b.co") == "CC [número] y correo [correo]"
+
+
+def test_status_never_exposes_the_key(client, citizen):
+    body = client.get("/api/ai/status", headers=citizen).json()
+    assert body["enabled"] is False and "key" not in str(body).lower()

@@ -136,6 +136,7 @@ textarea { resize: vertical; }
 .ai-note { margin-top: 1rem; padding: .75rem; border-radius: 8px; background: #f5f3ff; color: #4c1d95; font-size: .92rem; }
 .ai-box { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: #f5f3ff; border: 1px dashed #c4b5fd; border-radius: 8px; padding: .8rem 1rem; margin-bottom: 1rem; }
 .ai-box p { margin: .2rem 0 0; font-size: .88rem; }
+.ai-status { font-weight: 600; }
 .timeline { list-style: none; margin: 0; padding: 0 0 0 1.1rem; border-left: 2px solid var(--border); }
 .timeline li { position: relative; padding: 0 0 1.2rem .6rem; }
 .timeline li::before { content: ''; position: absolute; left: -1.52rem; top: .35rem; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--primary); }

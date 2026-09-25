@@ -36,6 +36,7 @@ export const catalogApi = {
 }
 
 export const aiApi = {
+  status: () => api<{ enabled: boolean; provider: string | null; model: string | null }>('/ai/status'),
   classify: (subject: string, description: string) =>
     api<Classification>('/ai/classify', { method: 'POST', body: { subject, description } }),
 }

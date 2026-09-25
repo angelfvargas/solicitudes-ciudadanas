@@ -12,6 +12,7 @@ interface Form { subject: string; description: string; category: string; priorit
 export function NewRequestPage() {
   const navigate = useNavigate()
   const catalogs = useAsync(() => catalogApi.get(), [])
+  const aiStatus = useAsync(() => aiApi.status(), [])
   const [form, setForm] = useState<Form>({ subject: '', description: '', category: '', priority: '', ai_summary: '' })
   const [errors, setErrors] = useState<Errors<Form>>({})
   const [serverError, setServerError] = useState('')
@@ -85,8 +86,15 @@ export function NewRequestPage() {
           <div>
             <strong>¿No sabe qué categoría elegir?</strong>
             <p className="muted">La IA puede sugerir categoría, prioridad y un resumen. Usted revisa y decide.</p>
+            {aiStatus.data && (
+              <p className="muted ai-status">
+                {aiStatus.data.enabled
+                  ? <>● IA activa · {aiStatus.data.provider} ({aiStatus.data.model})</>
+                  : <>○ IA no configurada: clasifique manualmente</>}
+              </p>
+            )}
           </div>
-          <button type="button" className="btn" onClick={suggest} disabled={aiState.loading}>
+          <button type="button" className="btn" onClick={suggest} disabled={aiState.loading || aiStatus.data?.enabled === false}>
             {aiState.loading ? 'Analizando…' : '✨ Sugerir con IA'}
           </button>
         </div>
