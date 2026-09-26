@@ -23,6 +23,8 @@ export const requestsApi = {
   assign: (id: number, officialId: number, observation: string) =>
     api<RequestDetail>(`/requests/${id}/assign`, { method: 'PUT', body: { official_id: officialId, observation } }),
   history: (id: number) => api<HistoryItem[]>(`/requests/${id}/history`),
+  addObservation: (id: number, observation: string) =>
+    api<HistoryItem>(`/requests/${id}/observations`, { method: 'POST', body: { observation } }),
   transitions: (id: number) => api<CatalogItem[]>(`/requests/${id}/transitions`),
 }
 

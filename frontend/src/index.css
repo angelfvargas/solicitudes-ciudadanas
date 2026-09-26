@@ -142,6 +142,8 @@ textarea { resize: vertical; }
 .timeline li::before { content: ''; position: absolute; left: -1.52rem; top: .35rem; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--primary); }
 .timeline-when { font-size: .8rem; color: var(--muted); }
 .timeline-what { margin: .2rem 0; }
+.small { font-size: .85rem; margin: -.5rem 0 .75rem; }
+.timeline li.tl-observation::before { background: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
 .timeline-note { margin-top: .3rem; background: #f7f9fc; border-radius: 6px; padding: .45rem .6rem; font-size: .9rem; }
 
 /* --- responsive --- */

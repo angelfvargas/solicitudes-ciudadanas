@@ -48,8 +48,11 @@ export interface RequestDetail extends RequestItem {
 
 export interface Page<T> { items: T[]; total: number; page: number; size: number }
 
+export type HistoryAction = 'created' | 'status_change' | 'assignment' | 'observation'
+
 export interface HistoryItem {
   id: number
+  action: HistoryAction
   previous_status: CatalogItem | null
   new_status: CatalogItem
   changed_by: UserBrief & { role: Role }

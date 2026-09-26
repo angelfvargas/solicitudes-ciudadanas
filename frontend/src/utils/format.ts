@@ -1,5 +1,12 @@
-const dateTime = new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short' })
-const dateOnly = new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' })
+// Fechas en el formato del ejemplo de la prueba: 10/09/2026 08:30 (hora local, 24 horas).
+const pad = (n: number) => String(n).padStart(2, '0')
 
-export const formatDateTime = (iso: string) => dateTime.format(new Date(iso))
-export const formatDate = (iso: string) => dateOnly.format(new Date(iso))
+export function formatDate(iso: string): string {
+  const d = new Date(iso)
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  return `${formatDate(iso)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}

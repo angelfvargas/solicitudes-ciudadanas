@@ -13,6 +13,8 @@ export function RequestDetailPage() {
   const { hasRole } = useAuth()
   const detail = useAsync(() => requestsApi.get(id), [id])
   const history = useAsync(() => requestsApi.history(id), [id])
+  // Las reglas de cada estado (final, permite asignar) vienen del backend, no se repiten aquí.
+  const catalogs = useAsync(() => catalogApi.get(), [])
   const canManage = hasRole('official', 'admin')
 
   function refresh() {
@@ -23,6 +25,7 @@ export function RequestDetailPage() {
   if (detail.loading && !detail.data) return <p className="muted">Cargando…</p>
   if (detail.error) return <><Alert>{detail.error}</Alert><Link to="/solicitudes">← Volver</Link></>
   const r = detail.data!
+  const statusInfo = catalogs.data?.statuses.find((s) => s.id === r.status.id)
 
   return (
     <>
@@ -56,7 +59,8 @@ export function RequestDetailPage() {
           </section>
 
           {canManage && <StatusForm request={r} onDone={refresh} />}
-          {hasRole('admin') && <AssignForm request={r} onDone={refresh} />}
+          {canManage && statusInfo && !statusInfo.is_final && <ObservationForm request={r} onDone={refresh} />}
+          {hasRole('admin') && statusInfo && <AssignForm request={r} assignable={statusInfo.allows_assignment} onDone={refresh} />}
         </div>
 
         <section className="card">
@@ -69,27 +73,71 @@ export function RequestDetailPage() {
   )
 }
 
+const ACTION_LABEL: Record<HistoryItem['action'], string> = {
+  created: 'Solicitud creada',
+  status_change: 'Cambio de estado',
+  assignment: 'Asignación',
+  observation: 'Observación',
+}
+
 function Timeline({ items }: { items: HistoryItem[] }) {
   return (
     <ol className="timeline">
-      {items.map((h) => (
-        <li key={h.id}>
-          <div className="timeline-when">{formatDateTime(h.changed_at)}</div>
-          <div className="timeline-what">
-            {h.previous_status ? (
-              h.previous_status.id === h.new_status.id
-                ? <>Reasignación · <StatusBadge status={h.new_status} /></>
-                : <><StatusBadge status={h.previous_status} /> → <StatusBadge status={h.new_status} /></>
-            ) : <>Creada como <StatusBadge status={h.new_status} /></>}
-          </div>
-          <div className="timeline-who">
-            {h.changed_by.full_name} <span className="muted">({h.changed_by.role.name})</span>
-          </div>
-          {h.assigned_official && <div className="muted">Funcionario: {h.assigned_official.full_name}</div>}
-          {h.observation && <div className="timeline-note">{h.observation}</div>}
-        </li>
-      ))}
+      {items.map((h) => {
+        const sameStatus = h.previous_status?.id === h.new_status.id
+        const label = h.action === 'assignment' && sameStatus ? 'Reasignación' : ACTION_LABEL[h.action]
+        return (
+          <li key={h.id} className={`tl-${h.action}`}>
+            <div className="timeline-when">{formatDateTime(h.changed_at)}</div>
+            <div className="timeline-what">
+              <strong>{label}</strong>{' '}
+              {h.previous_status && !sameStatus
+                ? <><StatusBadge status={h.previous_status} /> → <StatusBadge status={h.new_status} /></>
+                : <StatusBadge status={h.new_status} />}
+            </div>
+            <div className="timeline-who">
+              {h.changed_by.full_name} <span className="muted">({h.changed_by.role.name})</span>
+            </div>
+            {h.assigned_official && <div>Funcionario: <strong>{h.assigned_official.full_name}</strong></div>}
+            {h.observation && <div className="timeline-note">Observación: {h.observation}</div>}
+          </li>
+        )
+      })}
     </ol>
+  )
+}
+
+function ObservationForm({ request, onDone }: { request: RequestDetail; onDone: () => void }) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  const [sending, setSending] = useState(false)
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (text.trim().length < 3) return setError('Escriba al menos 3 caracteres')
+    setSending(true)
+    setError('')
+    try {
+      await requestsApi.addObservation(request.id, text)
+      setText('')
+      onDone()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error inesperado')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <form className="card" onSubmit={submit}>
+      <h2>Agregar observación</h2>
+      <p className="muted small">Sin cambiar el estado. Quedará registrada en el historial.</p>
+      <Alert>{error}</Alert>
+      <Field label="Observación">
+        <textarea rows={2} maxLength={1000} value={text} onChange={(e) => setText(e.target.value)} />
+      </Field>
+      <button className="btn" disabled={sending}>{sending ? 'Guardando…' : 'Agregar observación'}</button>
+    </form>
   )
 }
 
@@ -144,15 +192,12 @@ function StatusForm({ request, onDone }: { request: RequestDetail; onDone: () =>
   )
 }
 
-function AssignForm({ request, onDone }: { request: RequestDetail; onDone: () => void }) {
+function AssignForm({ request, assignable, onDone }: { request: RequestDetail; assignable: boolean; onDone: () => void }) {
   const officials = useAsync(() => usersApi.list('official'), [])
   const [officialId, setOfficialId] = useState('')
   const [observation, setObservation] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
-  const catalogs = useAsync(() => catalogApi.get(), [])
-  // La regla viene del backend (allows_assignment del estado), no se repite aquí.
-  const assignable = catalogs.data?.statuses.find((s) => s.id === request.status.id)?.allows_assignment ?? false
 
   async function submit(e: FormEvent) {
     e.preventDefault()
