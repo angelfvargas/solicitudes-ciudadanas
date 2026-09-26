@@ -87,6 +87,7 @@ def test_status_never_exposes_the_key(client, citizen):
 class _Resp:
     def __init__(self, status, payload=None):
         self.status_code, self._payload = status, payload or {}
+        self.text = json.dumps(self._payload)
 
     def json(self):
         return self._payload
@@ -125,3 +126,31 @@ def test_gemini_rejected_key_does_not_retry(monkeypatch):
     with pytest.raises(AIUnavailableError, match="rechazó"):
         gemini_provider.GeminiProvider("k", "modelo-a,modelo-b", 5).generate_json("s", "u", {})
     assert len(calls) == 1
+
+
+def test_gemini_discovers_new_models_when_configured_ones_no_longer_exist(monkeypatch):
+    from app.services.ai import gemini_provider
+    monkeypatch.setattr(gemini_provider, "_discovered", None)
+    posts = []
+
+    def fake_post(url, **_):
+        posts.append(url)
+        return _ok('{"ok": true}') if "gemini-9.1-flash:" in url else _Resp(404)
+
+    listing = {"models": [
+        {"name": "models/gemini-9.1-flash", "supportedGenerationMethods": ["generateContent"]},
+        {"name": "models/gemini-9.1-flash-lite", "supportedGenerationMethods": ["generateContent"]},
+        {"name": "models/text-embedding-9", "supportedGenerationMethods": ["embedContent"]},
+    ]}
+    monkeypatch.setattr(gemini_provider.httpx, "post", fake_post)
+    monkeypatch.setattr(gemini_provider.httpx, "get", lambda url, **_: _Resp(200, listing))
+    provider = gemini_provider.GeminiProvider("k", "gemini-1.0-flash", 5)
+    assert provider.generate_json("s", "u", {}) == '{"ok": true}'
+    assert provider.model_name == "gemini-9.1-flash"
+    assert posts[0].endswith("gemini-1.0-flash:generateContent")
+
+
+def test_rank_flash_models():
+    from app.services.ai.gemini_provider import rank_flash_models
+    names = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.6-pro", "gemma-3"]
+    assert rank_flash_models(names) == ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"]

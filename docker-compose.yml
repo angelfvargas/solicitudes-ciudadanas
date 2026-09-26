@@ -26,7 +26,7 @@ services:
       # Solo para probar en local. En un servidor real se define un JWT_SECRET propio.
       JWT_SECRET: ${JWT_SECRET:-solo-para-desarrollo-cambie-este-secreto-en-produccion}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite}
       SEED_DEMO: "1"   # carga las 40 solicitudes de ejemplo si la base está vacía
 
 volumes:

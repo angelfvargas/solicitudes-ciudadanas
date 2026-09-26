@@ -19,7 +19,8 @@ class Settings(BaseSettings):
 
     # IA (opcional). Sin llave, la funcionalidad de IA responde 503 y el resto del sistema sigue igual.
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"  # admite varios separados por coma (respaldo)
+    # Varios modelos separados por coma, en orden de preferencia (respaldo si uno está saturado).
+    gemini_model: str = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite"
     ai_timeout_seconds: float = 12.0
 
     cors_origins: list[str] = ["http://localhost:5173"]
