@@ -35,4 +35,4 @@ class TokenService:
             payload = jwt.decode(token, self._secret, algorithms=[self._algorithm])
             return int(payload["sub"])
         except (jwt.PyJWTError, KeyError, ValueError):
-            raise AuthenticationError("Sesión inválida o expirada. Inicie sesión de nuevo.")
+            raise AuthenticationError("Sesión inválida o expirada. Inicie sesión de nuevo.") from None

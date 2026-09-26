@@ -49,3 +49,36 @@ def test_login_error_does_not_reveal_which_field_failed(client):
 def test_protected_endpoints_require_token(client):
     assert client.get("/api/requests").status_code == 401
     assert client.get("/api/requests", headers={"Authorization": "Bearer basura"}).status_code == 401
+
+
+def test_document_error_points_to_the_document_field(client):
+    r = client.post("/api/auth/register", json={**VALID, "document_type": "CE", "document_number": "12"})
+    assert r.status_code == 422
+    assert r.json()["fields"] == [{"field": "document_number",
+                                   "message": "Número de documento inválido para CE: entre 5 y 15 letras o números"}]
+
+
+def test_validation_messages_are_in_spanish(client):
+    r = client.post("/api/auth/register", json={**VALID, "password": "a1", "email": "x"})
+    messages = {f["field"]: f["message"] for f in r.json()["fields"]}
+    assert messages["password"] == "Debe tener al menos 8 caracteres."
+    assert messages["email"] == "Correo electrónico inválido."
+    r = client.post("/api/auth/register", json={"first_name": "Pedro"})
+    assert {f["message"] for f in r.json()["fields"]} == {"Este campo es obligatorio."}
+
+
+def test_unknown_api_route_is_json_404(client):
+    r = client.get("/api/esto-no-existe")
+    assert r.status_code == 404
+    assert r.json() == {"detail": "Ruta no encontrada.", "code": "not_found"}
+
+
+def test_spa_index_is_not_cached(client):
+    from pathlib import Path
+
+    from app.core.config import get_settings
+    if not (Path(get_settings().frontend_dist) / "index.html").is_file():
+        import pytest
+        pytest.skip("frontend sin compilar")
+    r = client.get("/solicitudes/1")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"

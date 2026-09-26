@@ -75,7 +75,7 @@ class RequestClassifier:
         try:
             data = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
-            raise invalid
+            raise invalid from None
         if not isinstance(data, dict):
             raise invalid
         category = str(data.get("category", "")).strip().lower()

@@ -42,7 +42,7 @@ class AuthService:
         except IntegrityError:
             # Dos registros simultáneos con el mismo dato: la restricción UNIQUE de la BD decide.
             self.users.db.rollback()
-            raise ConflictError("Ya existe una cuenta con ese correo o documento.")
+            raise ConflictError("Ya existe una cuenta con ese correo o documento.") from None
         return user
 
     def login(self, data: LoginIn) -> tuple[str, User]:

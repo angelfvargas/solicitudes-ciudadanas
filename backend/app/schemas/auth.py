@@ -1,7 +1,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator
 
 from app.schemas.user import UserOut
 
@@ -38,19 +38,21 @@ class RegisterIn(BaseModel):
             raise ValueError("La contraseña es demasiado larga")
         return v
 
-    @model_validator(mode="after")
-    def valid_document(self) -> "RegisterIn":
-        number = self.document_number.strip().upper()
-        if self.document_type in ("CC", "TI"):
-            ok = re.fullmatch(r"\d{6,10}", number)
-            rule = "entre 6 y 10 dígitos"
-        else:  # CE y pasaporte admiten letras
-            ok = re.fullmatch(r"[A-Z0-9]{5,15}", number)
-            rule = "entre 5 y 15 letras o números"
+    @field_validator("document_number")
+    @classmethod
+    def valid_document(cls, v: str, info: ValidationInfo) -> str:
+        # document_type se valida antes (va primero en el modelo); si no es válido, ya hay un error ahí.
+        document_type = info.data.get("document_type")
+        number = v.strip().upper()
+        if document_type in ("CC", "TI"):
+            ok, rule = re.fullmatch(r"\d{6,10}", number), "entre 6 y 10 dígitos"
+        elif document_type in ("CE", "PA"):  # admiten letras
+            ok, rule = re.fullmatch(r"[A-Z0-9]{5,15}", number), "entre 5 y 15 letras o números"
+        else:
+            return number
         if not ok:
-            raise ValueError(f"Número de documento inválido para {self.document_type}: {rule}")
-        self.document_number = number
-        return self
+            raise ValueError(f"Número de documento inválido para {document_type}: {rule}")
+        return number
 
 
 class LoginIn(BaseModel):
