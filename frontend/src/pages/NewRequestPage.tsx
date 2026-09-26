@@ -18,7 +18,7 @@ export function NewRequestPage() {
   const [serverError, setServerError] = useState('')
   const [sending, setSending] = useState(false)
   const [suggestion, setSuggestion] = useState<Classification | null>(null)
-  const [aiState, setAiState] = useState<{ loading: boolean; error: string }>({ loading: false, error: '' })
+  const [aiState, setAiState] = useState<{ loading: boolean; error: string; tried: boolean }>({ loading: false, error: '', tried: false })
 
   const set = (key: keyof Form) => (e: { target: { value: string } }) => {
     setForm({ ...form, [key]: e.target.value })
@@ -28,15 +28,15 @@ export function NewRequestPage() {
   async function suggest() {
     const descriptionError = rules.length(form.description, 20, 2000)
     if (descriptionError) return setErrors({ ...errors, description: descriptionError })
-    setAiState({ loading: true, error: '' })
+    setAiState({ loading: true, error: '', tried: true })
     try {
       const result = await aiApi.classify(form.subject, form.description)
       setSuggestion(result)
       // Se precargan los campos, pero el ciudadano puede cambiarlos antes de enviar.
       setForm({ ...form, category: result.category, priority: result.priority, ai_summary: result.summary })
-      setAiState({ loading: false, error: '' })
+      setAiState({ loading: false, error: '', tried: true })
     } catch (err) {
-      setAiState({ loading: false, error: err instanceof ApiError ? err.message : 'La IA no respondió.' })
+      setAiState({ loading: false, error: err instanceof ApiError ? err.message : 'La IA no respondió.', tried: true })
     }
   }
 
@@ -45,11 +45,24 @@ export function NewRequestPage() {
     setForm({ ...form, priority: '', ai_summary: '' })
   }
 
+  // Punto 17.1 de la prueba: al registrar, la IA sugiere automáticamente categoría, prioridad y
+  // resumen. Si el ciudadano aún no eligió categoría, el primer clic en "Registrar" pide la
+  // sugerencia y se detiene para que la revise; el segundo clic guarda lo que él confirmó.
+  const autoSuggest = !!aiStatus.data?.enabled && !suggestion && !aiState.tried && !form.category
+
   async function submit(e: FormEvent) {
     e.preventDefault()
-    const found: Errors<Form> = {
+    const base: Errors<Form> = {
       subject: rules.length(form.subject, 5, 150),
       description: rules.length(form.description, 20, 2000),
+    }
+    if (autoSuggest && !hasErrors(base)) {
+      setErrors(base)
+      await suggest()
+      return
+    }
+    const found: Errors<Form> = {
+      ...base,
       category: rules.required(form.category) && 'Seleccione una categoría',
     }
     setErrors(found)
@@ -85,7 +98,8 @@ export function NewRequestPage() {
         <div className="ai-box">
           <div>
             <strong>¿No sabe qué categoría elegir?</strong>
-            <p className="muted">La IA puede sugerir categoría, prioridad y un resumen. Usted revisa y decide.</p>
+            <p className="muted">Si no elige categoría, al presionar Registrar la IA sugiere automáticamente categoría,
+              prioridad y un resumen, y usted los revisa antes de guardar. También puede pedirla ahora.</p>
             {aiStatus.data && (
               <p className="muted ai-status">
                 {aiStatus.data.enabled
@@ -101,7 +115,8 @@ export function NewRequestPage() {
         {aiState.error && <Alert kind="info">{aiState.error}</Alert>}
         {suggestion && (
           <Alert kind="success">
-            Sugerencia aplicada (modelo {suggestion.model}). Revise la categoría, la prioridad y el resumen antes de enviar.{' '}
+            La IA completó la categoría, la prioridad y el resumen (modelo {suggestion.model}). Revíselos, cámbielos si
+            hace falta y presione <strong>Registrar solicitud</strong> para confirmar.{' '}
             <button type="button" className="link" onClick={discardSuggestion}>Descartar sugerencia</button>
           </Alert>
         )}
@@ -130,7 +145,9 @@ export function NewRequestPage() {
 
         <div className="actions">
           <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>Cancelar</button>
-          <button className="btn btn-primary" disabled={sending}>{sending ? 'Enviando…' : 'Registrar solicitud'}</button>
+          <button className="btn btn-primary" disabled={sending || aiState.loading}>
+            {sending ? 'Enviando…' : aiState.loading ? 'Analizando con IA…' : 'Registrar solicitud'}
+          </button>
         </div>
       </form>
     </>
