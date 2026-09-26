@@ -176,7 +176,7 @@ Abrir **http://localhost:5173**. Vite reenvía `/api` al backend.
 ```bash
 cd backend && pytest
 ```
-43 pruebas: registro y duplicados, login, permisos por rol, la situación de cambiar el id en
+43 pruebas (una se omite si el frontend no está compilado): registro y duplicados, login, permisos por rol, la situación de cambiar el id en
 la URL, la transición Registrada → Cerrada, el ciclo de vida completo con su historial,
 asignación y reasignación, filtros, y la IA (respuestas inválidas, servicio caído y datos
 personales que no deben salir).
