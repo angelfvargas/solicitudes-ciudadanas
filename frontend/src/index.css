@@ -153,7 +153,11 @@ textarea { resize: vertical; }
 }
 @media (max-width: 640px) {
   h1 { font-size: 1.3rem; }
-  .topbar-inner { gap: .6rem; }
+  .topbar-inner { gap: .5rem; }
+  .brand { flex: 1; }
+  /* el menú baja a su propia fila y se desplaza de lado si no cabe */
+  .nav { order: 3; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; }
+  .nav a { white-space: nowrap; }
   .user-name small { display: none; }
   .filters select { width: 100%; }
   /* la tabla se convierte en tarjetas: cada celda muestra su etiqueta */
