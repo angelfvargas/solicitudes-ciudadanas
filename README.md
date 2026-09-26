@@ -76,6 +76,17 @@ docs/                  Modelo entidad-relación y prueba de lógica
 
 ## 3. Requisitos
 
+**Opción más rápida: Docker.** Solo necesita Docker y Docker Compose:
+```bash
+docker-compose up --build        # o: docker compose up --build
+```
+Abrir **http://localhost:8000**. Levanta PostgreSQL 16 y la app (una sola imagen: React
+compilado + FastAPI), crea las tablas, el trigger y los datos de ejemplo. Para activar la IA:
+`GEMINI_API_KEY=su-llave docker-compose up --build`. Para apagar: `docker-compose down`
+(agregue `-v` para borrar también los datos).
+
+**Sin Docker:**
+
 - Python 3.11 o superior
 - Node.js 20 o superior (con npm)
 - PostgreSQL 14 o superior. Si no lo tiene instalado, el proyecto incluye uno de desarrollo que
@@ -240,6 +251,7 @@ cada campo.
 |---|---|
 | **Clasificación con IA** (alternativa A) | El ciudadano no siempre sabe si su caso es queja, reclamo o petición. Una mala clasificación retrasa la atención; la prioridad sugerida ayuda a atender primero lo urgente. |
 | **Tablero con estadísticas** | Muestra de un vistazo cuántas solicitudes hay por estado y cuántas siguen **sin funcionario**, que son las que están represadas. |
+| **Docker** | Un solo comando levanta la base de datos y la app, igual en cualquier máquina. La imagen es multi-etapa (compila React y luego instala solo lo necesario para Python) y corre sin permisos de root. |
 | **Pruebas automatizadas** (37) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
 | **Paginación y filtros en la URL** | Los listados no cargan todo de golpe, y un filtro se puede compartir o recargar. |
 | **Swagger / OpenAPI** | Documentación viva de la API en `/api/docs`. |
