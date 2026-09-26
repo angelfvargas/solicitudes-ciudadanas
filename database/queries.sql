@@ -32,28 +32,31 @@ LIMIT 10;
 
 
 -- Consulta 3 — Cantidad de solicitudes atendidas por cada funcionario.
--- Decisión: "atendida" = el funcionario la llevó a estado Resuelta (queda en el
--- historial, así que cuenta aunque luego la hayan reasignado o cerrado).
--- Se muestran también los funcionarios con 0 y, como dato extra, su carga actual.
-SELECT u.first_name || ' ' || u.last_name                       AS funcionario,
-       COUNT(DISTINCT h.request_id)                             AS atendidas,
-       (SELECT COUNT(*) FROM requests r
-         JOIN request_statuses rs ON rs.id = r.status_id
-         WHERE r.official_id = u.id AND NOT rs.is_final
-           AND rs.code <> 'resolved')                           AS en_curso_actualmente
+-- "Atendidas" admite dos lecturas; se entregan las dos para que no quede ambigüedad.
+
+-- Consulta 3a — Interpretación directa: solicitudes asignadas a cada funcionario (las que atiende).
+-- LEFT JOIN para que un funcionario sin solicitudes aparezca con 0.
+SELECT u.first_name || ' ' || u.last_name AS funcionario,
+       COUNT(r.id)                        AS solicitudes_atendidas
+FROM users u
+JOIN roles ro ON ro.id = u.role_id AND ro.code = 'official'
+LEFT JOIN requests r ON r.official_id = u.id
+GROUP BY u.id, u.first_name, u.last_name
+ORDER BY solicitudes_atendidas DESC, funcionario;
+
+
+-- Consulta 3b — Variante: solicitudes que cada funcionario llevó a Resuelta (sale del historial,
+-- así que cuenta aunque después la hayan reasignado o cerrado).
+SELECT u.first_name || ' ' || u.last_name AS funcionario,
+       COUNT(DISTINCT h.request_id)       AS solicitudes_resueltas
 FROM users u
 JOIN roles ro ON ro.id = u.role_id AND ro.code = 'official'
 LEFT JOIN request_status_history h
        ON h.changed_by_id = u.id
+      AND h.action = 'status_change'
       AND h.new_status_id = (SELECT id FROM request_statuses WHERE code = 'resolved')
 GROUP BY u.id, u.first_name, u.last_name
-ORDER BY atendidas DESC, funcionario;
-
--- Variante más simple, si "atendidas" se entiende como "asignadas actualmente":
--- SELECT u.first_name || ' ' || u.last_name AS funcionario, COUNT(r.id) AS solicitudes
--- FROM users u JOIN roles ro ON ro.id = u.role_id AND ro.code = 'official'
--- LEFT JOIN requests r ON r.official_id = u.id
--- GROUP BY u.id, u.first_name, u.last_name ORDER BY solicitudes DESC;
+ORDER BY solicitudes_resueltas DESC, funcionario;
 
 
 -- Consulta 4 — Solicitudes que actualmente no tienen funcionario asignado.
