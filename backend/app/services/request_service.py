@@ -1,9 +1,10 @@
 from app.core.errors import BusinessRuleError, NotFoundError, PermissionDeniedError
+from app.db.session import utcnow
 from app.models import CitizenRequest, RequestStatusHistory, User
 from app.repositories.catalog_repository import CatalogRepository
 from app.repositories.request_repository import HistoryRepository, RequestFilters, RequestRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.request import AssignIn, RequestCreate, StatusChangeIn
+from app.schemas.request import AssignIn, ObservationIn, RequestCreate, StatusChangeIn
 from app.services import roles
 from app.services.access_policy import RequestAccessPolicy
 from app.services.workflow import StatusWorkflow
@@ -61,7 +62,7 @@ class RequestService:
             priority=data.priority, ai_summary=data.ai_summary,
         ))
         self.history.add(RequestStatusHistory(
-            request_id=request.id, previous_status_id=None, new_status_id=initial.id,
+            request_id=request.id, action="created", previous_status_id=None, new_status_id=initial.id,
             changed_by_id=actor.id, observation="Solicitud registrada por el ciudadano.",
         ))
         self.requests.db.commit()
@@ -77,9 +78,8 @@ class RequestService:
         previous_id = request.status_id
         request.status_id = target.id
         self.history.add(RequestStatusHistory(
-            request_id=request.id, previous_status_id=previous_id, new_status_id=target.id,
-            changed_by_id=actor.id, assigned_official_id=request.official_id,
-            observation=_clean(data.observation),
+            request_id=request.id, action="status_change", previous_status_id=previous_id,
+            new_status_id=target.id, changed_by_id=actor.id, observation=_clean(data.observation),
         ))
         self.requests.db.commit()
         self.requests.db.refresh(request)
@@ -111,13 +111,30 @@ class RequestService:
 
         default_note = ("Solicitud asignada a " if target.id != previous.id else "Reasignada a ")
         self.history.add(RequestStatusHistory(
-            request_id=request.id, previous_status_id=previous.id, new_status_id=target.id,
-            changed_by_id=actor.id, assigned_official_id=official.id,
+            request_id=request.id, action="assignment", previous_status_id=previous.id,
+            new_status_id=target.id, changed_by_id=actor.id, assigned_official_id=official.id,
             observation=_clean(data.observation) or default_note + official.full_name + ".",
         ))
         self.requests.db.commit()
         self.requests.db.refresh(request)
         return request
+
+    def add_observation(self, actor: User, request_id: int, data: ObservationIn) -> RequestStatusHistory:
+        """Observación sin cambio de estado (sección 3: el funcionario puede "agregar observaciones").
+        Queda en el historial con el mismo estado anterior y nuevo."""
+        if actor.role.code not in (roles.OFFICIAL, roles.ADMIN):
+            raise PermissionDeniedError("Solo funcionarios y administradores agregan observaciones.")
+        request = self.get_visible(actor, request_id, for_update=True)
+        if request.status.is_final:
+            raise BusinessRuleError(f"La solicitud está {request.status.name.lower()}: ya no admite observaciones.")
+        entry = self.history.add(RequestStatusHistory(
+            request_id=request.id, action="observation", previous_status_id=request.status_id,
+            new_status_id=request.status_id, changed_by_id=actor.id, observation=data.observation,
+        ))
+        request.updated_at = utcnow()  # la solicitud tuvo actividad
+        self.requests.db.commit()
+        self.requests.db.refresh(entry)
+        return entry
 
 
 def _clean(text: str | None) -> str | None:

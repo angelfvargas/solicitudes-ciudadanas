@@ -75,7 +75,8 @@ erDiagram
         int previous_status_id FK "NULL en el registro inicial"
         int new_status_id FK
         int changed_by_id FK
-        int assigned_official_id FK
+        varchar action "CHECK: created, status_change, assignment, observation"
+        int assigned_official_id FK "solo en asignaciones"
         text observation
         timestamptz changed_at
     }
@@ -89,7 +90,8 @@ erDiagram
 | Tabla `status_transitions` | El flujo de estados es un dato. Todo lo que no está en la tabla se rechaza, y agregar un paso nuevo es insertar una fila (principio Abierto/Cerrado). |
 | El número de solicitud **no se guarda** | Se deriva del `id` (`LPAD(id, 6, '0')`). Guardarlo aparte duplicaría información que puede desincronizarse, como pide evitar la prueba. |
 | `requests.status_id` sí se guarda aunque el historial lo tenga | Es el estado *actual*. Sin él, filtrar por estado exigiría buscar el último registro del historial de cada solicitud. Se escribe en la misma transacción que el historial, así que no se desincroniza. |
-| `history.assigned_official_id` | No es redundante: guarda quién estaba asignado *en ese momento*. Si la solicitud se reasigna, el historial conserva lo que pasó. |
+| `history.action` | Dice explícitamente **qué ocurrió** (RF07): creación, cambio de estado, asignación u observación. Una observación sin cambio de estado queda con el mismo estado anterior y nuevo. Un `CHECK` garantiza la coherencia: solo la creación no tiene estado anterior. |
+| `history.assigned_official_id` (solo en asignaciones) | Guarda a quién se asignó la solicitud **en ese momento**, como en el ejemplo del PDF ("Funcionario: Juan Pérez"). No se repite en los demás registros, porque se puede obtener de la última asignación. Tampoco es redundante con `requests.official_id`: si la solicitud se reasigna, el historial conserva lo que pasó. |
 | `UNIQUE` en correo y documento | Es la última barrera contra duplicados, aunque el servicio ya lo valide (evita el caso de dos registros simultáneos). |
 | `CHECK` en longitudes, prioridad y tipo de documento | La base de datos no confía ni siquiera en el backend. |
 | Trigger que rechaza `UPDATE`/`DELETE` en el historial | "El historial no debe poder eliminarse": ni desde la interfaz (no hay endpoint) ni saltándose la API. |

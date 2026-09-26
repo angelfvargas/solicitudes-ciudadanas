@@ -8,6 +8,8 @@ from app.models.catalogs import Category, RequestStatus
 from app.models.user import User
 
 PRIORITIES = ("baja", "media", "alta")
+# Qué ocurrió en cada registro del historial (RF07: "debe ser evidente qué ocurrió").
+HISTORY_ACTIONS = ("created", "status_change", "assignment", "observation")
 
 
 class CitizenRequest(Base):
@@ -55,16 +57,29 @@ def format_request_number(request_id: int) -> str:
 
 class RequestStatusHistory(Base):
     """Historial inmutable: solo se inserta. No hay endpoint para editar ni borrar, y en
-    PostgreSQL un trigger rechaza UPDATE/DELETE (ver database/schema.sql)."""
+    PostgreSQL un trigger rechaza UPDATE/DELETE (ver database/schema.sql).
+
+    Cada registro dice qué ocurrió (action): creación, cambio de estado, asignación u observación.
+    En una asignación u observación sin cambio de estado, el estado anterior y el nuevo son iguales.
+    """
     __tablename__ = "request_status_history"
-    __table_args__ = (Index("ix_history_request_changed", "request_id", "changed_at"),)
+    __table_args__ = (
+        Index("ix_history_request_changed", "request_id", "changed_at"),
+        CheckConstraint(f"action IN {HISTORY_ACTIONS}", name="ck_history_action"),
+        # Solo el registro de creación no tiene estado anterior.
+        CheckConstraint("(action = 'created') = (previous_status_id IS NULL)", name="ck_history_previous"),
+        # El funcionario se guarda solo en las asignaciones (como en el ejemplo del PDF).
+        CheckConstraint("(action = 'assignment') = (assigned_official_id IS NOT NULL)", name="ck_history_official"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     request_id: Mapped[int] = mapped_column(ForeignKey("requests.id"))
     previous_status_id: Mapped[int | None] = mapped_column(ForeignKey("request_statuses.id"))
     new_status_id: Mapped[int] = mapped_column(ForeignKey("request_statuses.id"))
     changed_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    # Funcionario asignado EN ESE MOMENTO. No es redundante: la solicitud puede reasignarse después.
+    action: Mapped[str] = mapped_column(String(20))
+    # Solo en asignaciones: a quién se asignó. No es redundante con requests.official_id,
+    # porque la solicitud puede reasignarse después y el historial debe conservar lo que pasó.
     assigned_official_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     observation: Mapped[str | None] = mapped_column(Text)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())

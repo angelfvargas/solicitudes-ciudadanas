@@ -43,6 +43,18 @@ class StatusChangeIn(BaseModel):
     observation: str | None = Field(default=None, max_length=1000)
 
 
+class ObservationIn(BaseModel):
+    observation: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("observation")
+    @classmethod
+    def clean_observation(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("La observación debe tener al menos 3 caracteres")
+        return v
+
+
 class AssignIn(BaseModel):
     official_id: int = Field(gt=0)
     observation: str | None = Field(default=None, max_length=1000)
@@ -77,6 +89,7 @@ class RequestPage(BaseModel):
 class HistoryItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    action: Literal["created", "status_change", "assignment", "observation"]
     previous_status: CatalogItem | None
     new_status: CatalogItem
     changed_by: ActorBrief

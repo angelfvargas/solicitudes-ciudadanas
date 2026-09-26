@@ -123,7 +123,7 @@ def seed_demo_requests(db: Session, total: int = 40) -> None:
                                  created_at=created, updated_at=created)
         db.add(request)
         db.flush()
-        db.add(RequestStatusHistory(request_id=request.id, new_status_id=st["registered"].id,
+        db.add(RequestStatusHistory(request_id=request.id, action="created", new_status_id=st["registered"].id,
                                     changed_by_id=citizen.id, changed_at=created,
                                     observation="Solicitud registrada por el ciudadano."))
         moment, official = created, None
@@ -140,9 +140,9 @@ def seed_demo_requests(db: Session, total: int = 40) -> None:
                 note = ("Se inició la validación de la información." if code == "in_progress"
                         else "Se atendió la solicitud y se informó al ciudadano.")
             db.add(RequestStatusHistory(
-                request_id=request.id, previous_status_id=st[path[step - 1]].id,
-                new_status_id=st[code].id, changed_by_id=actor.id,
-                assigned_official_id=official.id if official else None,
+                request_id=request.id, action="assignment" if code == "assigned" else "status_change",
+                previous_status_id=st[path[step - 1]].id, new_status_id=st[code].id, changed_by_id=actor.id,
+                assigned_official_id=official.id if code == "assigned" else None,
                 observation=note, changed_at=moment))
         request.status_id = st[path[final_step]].id
         request.official_id = official.id if official else None

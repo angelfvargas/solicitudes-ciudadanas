@@ -4,8 +4,8 @@ from app.dependencies import get_current_user, get_request_service, require_role
 from app.models import User
 from app.repositories.request_repository import RequestFilters
 from app.schemas.catalog import CatalogItem
-from app.schemas.request import (AssignIn, HistoryItem, RequestCreate, RequestDetail, RequestPage,
-                                 StatusChangeIn)
+from app.schemas.request import (AssignIn, HistoryItem, ObservationIn, RequestCreate, RequestDetail,
+                                 RequestPage, StatusChangeIn)
 from app.services import roles
 from app.services.request_service import RequestService
 
@@ -56,6 +56,14 @@ def assign(request_id: int, data: AssignIn,
            user: User = Depends(require_roles(roles.ADMIN)),
            service: RequestService = Depends(get_request_service)):
     return service.assign(user, request_id, data)
+
+
+@router.post("/{request_id}/observations", response_model=HistoryItem, status_code=status.HTTP_201_CREATED)
+def add_observation(request_id: int, data: ObservationIn,
+                    user: User = Depends(require_roles(roles.OFFICIAL, roles.ADMIN)),
+                    service: RequestService = Depends(get_request_service)):
+    """Agrega una observación sin cambiar el estado. Queda en el historial."""
+    return service.add_observation(user, request_id, data)
 
 
 @router.get("/{request_id}/history", response_model=list[HistoryItem])

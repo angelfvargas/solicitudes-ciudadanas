@@ -68,6 +68,10 @@ def test_full_lifecycle_records_every_change(client, citizen, admin, official):
     assert client.put(f"/api/requests/{rid}/status", headers=admin, json={"status": "closed"}).status_code == 200
 
     history = client.get(f"/api/requests/{rid}/history", headers=citizen).json()
+    assert [h["action"] for h in history] == ["created", "status_change", "assignment",
+                                              "status_change", "status_change", "status_change"]
+    # el funcionario solo aparece en la asignación, como en el ejemplo del PDF
+    assert [bool(h["assigned_official"]) for h in history] == [False, False, True, False, False, False]
     steps = [(h["previous_status"] and h["previous_status"]["code"], h["new_status"]["code"]) for h in history]
     assert steps == [(None, "registered"), ("registered", "in_review"), ("in_review", "assigned"),
                      ("assigned", "in_progress"), ("in_progress", "resolved"), ("resolved", "closed")]
@@ -147,3 +151,37 @@ def test_transitions_endpoint_lists_only_allowed_targets(client, citizen, admin)
     client.put(f"/api/requests/{rid}/status", headers=admin, json={"status": "in_review"})
     # "Asignada" requiere funcionario: no se ofrece hasta que se asigne uno
     assert client.get(f"/api/requests/{rid}/transitions", headers=admin).json() == []
+
+
+def _assigned_to_juan(client, citizen, admin):
+    rid = create_request(client, citizen)["id"]
+    client.put(f"/api/requests/{rid}/status", headers=admin, json={"status": "in_review"})
+    client.put(f"/api/requests/{rid}/assign", headers=admin, json={"official_id": 2})
+    return rid
+
+
+def test_official_adds_observation_without_changing_status(client, citizen, admin, official):
+    rid = _assigned_to_juan(client, citizen, admin)
+    r = client.post(f"/api/requests/{rid}/observations", headers=official,
+                    json={"observation": "  Se llamó al ciudadano; visita programada.  "})
+    assert r.status_code == 201
+    entry = r.json()
+    assert entry["action"] == "observation"
+    assert entry["previous_status"]["code"] == entry["new_status"]["code"] == "assigned"
+    assert entry["observation"] == "Se llamó al ciudadano; visita programada."
+    assert client.get(f"/api/requests/{rid}", headers=official).json()["status"]["code"] == "assigned"
+    assert client.get(f"/api/requests/{rid}/history", headers=citizen).json()[-1]["action"] == "observation"
+
+
+def test_observation_permissions_and_rules(client, citizen, admin, official, other_official):
+    rid = _assigned_to_juan(client, citizen, admin)
+    body = {"observation": "Revisión en curso."}
+    assert client.post(f"/api/requests/{rid}/observations", headers=citizen, json=body).status_code == 403
+    assert client.post(f"/api/requests/{rid}/observations", headers=other_official, json=body).status_code == 404
+    assert client.post(f"/api/requests/{rid}/observations", headers=admin, json=body).status_code == 201
+    assert client.post(f"/api/requests/{rid}/observations", headers=official, json={"observation": " "}).status_code == 422
+    # una solicitud cerrada ya no admite observaciones
+    for code, who in (("in_progress", official), ("resolved", official), ("closed", admin)):
+        client.put(f"/api/requests/{rid}/status", headers=who, json={"status": code})
+    r = client.post(f"/api/requests/{rid}/observations", headers=admin, json=body)
+    assert r.status_code == 422 and "cerrada" in r.json()["detail"]
