@@ -9,7 +9,7 @@ Es la prueba técnica para el cargo de Practicante de Desarrollo de Software en 
 | Rol | Qué puede hacer |
 |---|---|
 | **Ciudadano** | Registrarse, iniciar sesión, crear solicitudes (con sugerencia opcional de IA) y ver sus solicitudes, con su detalle e historial. |
-| **Funcionario** | Ver las solicitudes asignadas a él, cambiarles el estado con observación y ver su historial. |
+| **Funcionario** | Ver las solicitudes asignadas a él, cambiarles el estado con observación, agregar observaciones sin cambiar el estado y ver su historial. |
 | **Administrador** | Ver todas las solicitudes con filtros y búsqueda, asignarlas y reasignarlas, cambiar estados, ver usuarios y el historial. |
 
 ---
@@ -24,7 +24,7 @@ Es la prueba técnica para el cargo de Practicante de Desarrollo de Software en 
 | Frontend | **React 19 + TypeScript (modo estricto) + Vite** | Lo recomienda la prueba. El tipado estricto detecta errores al compilar. |
 | Seguridad | **bcrypt** (contraseñas) + **JWT** (sesión) | Estándar, sin estado en el servidor. |
 | IA (opcional) | **Google Gemini** (modelos *flash*, con respaldo automático) por su API REST | Tiene capa gratuita y admite respuesta en JSON con esquema. |
-| Pruebas | **pytest** | 43 pruebas de API sobre SQLite en memoria (rápidas, sin servidor). |
+| Pruebas | **pytest** | 45 pruebas de API sobre SQLite en memoria (rápidas, sin servidor). |
 
 ## 2. Arquitectura: monolito en capas, patrón MVC
 
@@ -176,10 +176,11 @@ Abrir **http://localhost:5173**. Vite reenvía `/api` al backend.
 ```bash
 cd backend && pytest
 ```
-43 pruebas (una se omite si el frontend no está compilado): registro y duplicados, login, permisos por rol, la situación de cambiar el id en
-la URL, la transición Registrada → Cerrada, el ciclo de vida completo con su historial,
-asignación y reasignación, filtros, y la IA (respuestas inválidas, servicio caído y datos
-personales que no deben salir).
+45 pruebas (una se omite si el frontend no está compilado): registro y duplicados, login,
+permisos por rol, la situación de cambiar el id en la URL, la transición Registrada → Cerrada,
+el ciclo de vida completo con su historial, asignación y reasignación, observaciones, filtros,
+y la IA (respuestas inválidas, servicio caído, modelos retirados y datos personales que no
+deben salir).
 
 ## 7. Usuarios de prueba
 
@@ -208,6 +209,7 @@ Todas las rutas empiezan por `/api`. Salvo registro, login y catálogos, todas e
 | GET | `/requests/{id}` | todos | Detalle. Da 404 si el usuario no tiene acceso a esa solicitud. |
 | PUT | `/requests/{id}/status` | funcionario, admin | Cambia el estado con observación y valida el flujo |
 | PUT | `/requests/{id}/assign` | admin | Asigna o reasigna funcionario |
+| POST | `/requests/{id}/observations` | funcionario, admin | Agrega una observación sin cambiar el estado |
 | GET | `/requests/{id}/history` | todos | Historial en orden cronológico |
 | GET | `/requests/{id}/transitions` | todos | Estados a los que el usuario puede mover la solicitud |
 | GET | `/users` | admin | Usuarios (documento enmascarado); filtro `role` |
@@ -225,9 +227,10 @@ cada campo.
 - **Flujo de estados:** ver [docs/prueba-de-logica.md](docs/prueba-de-logica.md). La lista
   blanca de transiciones está en la tabla `status_transitions`; `Registrada → Cerrada` se
   rechaza con un 422 y un mensaje que explica qué sí se puede hacer.
-- **Historial:** cada cambio de estado y cada asignación escribe un registro en la **misma
-  transacción** que el cambio. No existe ningún endpoint para editarlo o borrarlo, y en
-  PostgreSQL un trigger rechaza `UPDATE` y `DELETE`.
+- **Historial:** cada creación, cambio de estado, asignación u observación escribe un registro
+  en la **misma transacción** que el cambio. Cada registro dice explícitamente **qué ocurrió**
+  (`action`), cuándo, quién, el estado anterior y el nuevo, y la observación. No existe ningún
+  endpoint para editarlo o borrarlo, y en PostgreSQL un trigger rechaza `UPDATE` y `DELETE`.
 - **Acceso por pertenencia (no solo por rol):** un ciudadano solo ve sus solicitudes y un
   funcionario solo las asignadas. Si alguien cambia el id en la URL, recibe un **404**, no un
   403, para no confirmar que la solicitud existe (`RequestAccessPolicy`). Los listados y el
@@ -243,6 +246,8 @@ cada campo.
   (Pydantic, servicios y `CHECK` en la base de datos) no confía en él.
 - **Datos mínimos:** la lista de usuarios muestra el documento enmascarado (`******0004`) y el
   detalle de una solicitud muestra del ciudadano solo el nombre.
+- **Documentación de la API:** Swagger (`/api/docs`) queda abierto porque es un prototipo; en
+  producción se desactivaría o se protegería.
 - **Errores:** un manejador central convierte cualquier excepción en un JSON sin trazas
   internas, con los mensajes de validación en español (una ruta de API inexistente responde
   404 en JSON, no la página web).
@@ -261,7 +266,7 @@ cada campo.
 | **Clasificación con IA** (alternativa A) | El ciudadano no siempre sabe si su caso es queja, reclamo o petición. Una mala clasificación retrasa la atención; la prioridad sugerida ayuda a atender primero lo urgente. |
 | **Tablero con estadísticas** | Muestra de un vistazo cuántas solicitudes hay por estado y cuántas siguen **sin funcionario**, que son las que están represadas. |
 | **Docker** | Un solo comando levanta la base de datos y la app, igual en cualquier máquina. La imagen es multi-etapa (compila React y luego instala solo lo necesario para Python) y corre sin permisos de root. |
-| **Pruebas automatizadas** (43) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
+| **Pruebas automatizadas** (45) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
 | **Paginación y filtros en la URL** | Los listados no cargan todo de golpe, y un filtro se puede compartir o recargar. |
 | **Swagger / OpenAPI** | Documentación viva de la API en `/api/docs`. |
 | **Manejo de errores centralizado** | Todos los errores tienen el mismo formato, y el frontend los muestra por campo. |
@@ -287,9 +292,11 @@ cada campo.
    revisa: la categoría debe existir y estar activa, la prioridad debe ser baja, media o
    alta, y el resumen debe tener entre 10 y 500 caracteres. Si algo falla, se descarta y se
    pide clasificar a mano.
-6. **Revisión del usuario:** la sugerencia solo **precarga** el formulario. El ciudadano ve
-   un aviso, puede cambiar la categoría, la prioridad y el resumen, o descartarla. Nada se
-   guarda hasta que él envía.
+6. **Revisión del usuario:** al registrar, si el ciudadano no eligió categoría, la IA sugiere
+   **automáticamente** categoría, prioridad y resumen, y el envío se detiene para que los
+   revise (también hay un botón para pedir la sugerencia antes). La sugerencia solo
+   **precarga** el formulario: el ciudadano puede cambiarla o descartarla, y nada se guarda
+   hasta que él confirma con un segundo clic.
 7. **Datos enviados al modelo:** solo el asunto y la descripción. Antes de enviarlos se
    borran correos y números largos (cédulas, teléfonos). El nombre, el documento y el correo
    del usuario nunca se envían.
@@ -311,6 +318,16 @@ La prioridad es una sugerencia inicial y no reemplaza el criterio del funcionari
 - **Asignar mueve a "Asignada".** Si la solicitud está "En revisión", asignarla la pasa a
   "Asignada" en la misma operación, como en el ejemplo de la prueba. Si ya estaba asignada o
   en proceso, es una **reasignación**: el estado no cambia, pero queda en el historial.
+  Una solicitud "Registrada" no se puede asignar: primero se revisa, como en el ejemplo.
+- **Observaciones sin cambio de estado.** La prueba lista por separado "cambiar el estado" y
+  "agregar observaciones", así que el funcionario (y el administrador) puede agregar una
+  observación sola. Queda en el historial con el mismo estado anterior y nuevo. Una solicitud
+  cerrada ya no admite observaciones.
+- **El historial sigue el ejemplo del PDF:** fechas `10/09/2026 08:30` y el funcionario
+  ("Funcionario: Juan Pérez") solo en el registro de la asignación.
+- **Funcionarios y administradores no se registran solos.** El registro público crea siempre
+  ciudadanos; los demás usuarios se crean con el script de datos iniciales. Una pantalla para
+  administrar usuarios quedó fuera del alcance de la prueba.
 - **Un funcionario no puede cerrar.** Resuelve la solicitud y el administrador la cierra
   (control de calidad). Cambiarlo es insertar una fila en `status_transitions`.
 - **Resuelta → En proceso (reabrir)** está permitido al administrador, por si la respuesta
@@ -328,9 +345,10 @@ La prioridad es una sugerencia inicial y no reemplaza el criterio del funcionari
 ## 13. Prueba de SQL
 
 Las cuatro consultas están en [`database/queries.sql`](database/queries.sql), con
-comentarios, y se probaron sobre los datos de ejemplo. Una aclaración: en la consulta 3,
-"atendidas" se interpreta como *solicitudes que el funcionario llevó a Resuelta* (sale del
-historial). Se deja comentada la variante "asignadas actualmente".
+comentarios, y se probaron sobre los datos de ejemplo. En la consulta 3, "atendidas" se
+puede leer de dos maneras, así que se entregan las dos: **3a**, las solicitudes asignadas a
+cada funcionario (lectura directa), y **3b**, las que cada funcionario llevó a Resuelta
+(sale del historial).
 
 ## 14. Qué cambiaría con 100.000 usuarios
 
