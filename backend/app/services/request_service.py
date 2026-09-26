@@ -29,8 +29,8 @@ class RequestService:
     def search(self, actor: User, filters: RequestFilters, page: int, size: int):
         return self.requests.search(self.access.scope(actor, filters), page, size)
 
-    def get_visible(self, actor: User, request_id: int) -> CitizenRequest:
-        request = self.requests.get(request_id)
+    def get_visible(self, actor: User, request_id: int, for_update: bool = False) -> CitizenRequest:
+        request = self.requests.get(request_id, for_update=for_update)
         # 404 (y no 403) si no le pertenece: no se confirma que la solicitud exista.
         if request is None or not self.access.can_view(actor, request):
             raise NotFoundError("Solicitud no encontrada.")
@@ -68,7 +68,7 @@ class RequestService:
         return self.requests.get(request.id)
 
     def change_status(self, actor: User, request_id: int, data: StatusChangeIn) -> CitizenRequest:
-        request = self.get_visible(actor, request_id)
+        request = self.get_visible(actor, request_id, for_update=True)
         target = self.catalogs.status_by_code(data.status)
         if target is None:
             raise BusinessRuleError("El estado indicado no existe.")
@@ -88,7 +88,7 @@ class RequestService:
     def assign(self, actor: User, request_id: int, data: AssignIn) -> CitizenRequest:
         if actor.role.code != roles.ADMIN:
             raise PermissionDeniedError("Solo el administrador asigna solicitudes.")
-        request = self.get_visible(actor, request_id)
+        request = self.get_visible(actor, request_id, for_update=True)
         if not request.status.allows_assignment:
             raise BusinessRuleError(
                 f"No se puede asignar una solicitud en estado {request.status.name}.")

@@ -19,7 +19,12 @@ class RequestRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get(self, request_id: int) -> CitizenRequest | None:
+    def get(self, request_id: int, for_update: bool = False) -> CitizenRequest | None:
+        """for_update=True bloquea la fila (SELECT ... FOR UPDATE) hasta el commit: si dos personas
+        cambian la misma solicitud a la vez, la segunda espera y valida sobre el estado ya actualizado."""
+        if for_update:
+            self.db.execute(select(CitizenRequest.id).where(CitizenRequest.id == request_id).with_for_update())
+            return self.db.get(CitizenRequest, request_id, populate_existing=True)  # datos frescos, ya bloqueados
         return self.db.get(CitizenRequest, request_id)
 
     def add(self, request: CitizenRequest) -> CitizenRequest:
