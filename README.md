@@ -23,8 +23,8 @@ Es la prueba técnica para el cargo de Practicante de Desarrollo de Software en 
 | Base de datos | **PostgreSQL 16** | Es relacional, tiene `CHECK`, llaves foráneas y triggers (se usan para que el historial sea inmutable). |
 | Frontend | **React 19 + TypeScript (modo estricto) + Vite** | Lo recomienda la prueba. El tipado estricto detecta errores al compilar. |
 | Seguridad | **bcrypt** (contraseñas) + **JWT** (sesión) | Estándar, sin estado en el servidor. |
-| IA (opcional) | **Google Gemini** (`gemini-2.5-flash`) por su API REST | Tiene capa gratuita y admite respuesta en JSON con esquema. |
-| Pruebas | **pytest** | 37 pruebas de API sobre SQLite en memoria (rápidas, sin servidor). |
+| IA (opcional) | **Google Gemini** (modelos *flash*, con respaldo automático) por su API REST | Tiene capa gratuita y admite respuesta en JSON con esquema. |
+| Pruebas | **pytest** | 43 pruebas de API sobre SQLite en memoria (rápidas, sin servidor). |
 
 ## 2. Arquitectura: monolito en capas, patrón MVC
 
@@ -121,7 +121,7 @@ cp backend/.env.example backend/.env
 | `JWT_SECRET` | sí | Secreto para firmar los tokens, **mínimo 32 caracteres** (la app no arranca con uno más corto). Genérelo con `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `JWT_EXPIRE_MINUTES` | no | Duración de la sesión (60 por defecto) |
 | `GEMINI_API_KEY` | no | Llave de [Google AI Studio](https://aistudio.google.com/apikey). Sin ella, la app funciona igual y la categoría se elige a mano. |
-| `GEMINI_MODEL` | no | Uno o varios modelos separados por coma, en orden de preferencia (respaldo si uno está saturado). `gemini-2.5-flash` por defecto |
+| `GEMINI_MODEL` | no | Uno o varios modelos separados por coma, en orden de preferencia (respaldo si uno está saturado). Por defecto `gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite`; si ninguno existe ya, se usan los *flash* vigentes |
 
 El archivo `.env` está en `.gitignore`. **Ninguna clave está en el código.**
 
@@ -176,7 +176,7 @@ Abrir **http://localhost:5173**. Vite reenvía `/api` al backend.
 ```bash
 cd backend && pytest
 ```
-37 pruebas: registro y duplicados, login, permisos por rol, la situación de cambiar el id en
+43 pruebas: registro y duplicados, login, permisos por rol, la situación de cambiar el id en
 la URL, la transición Registrada → Cerrada, el ciclo de vida completo con su historial,
 asignación y reasignación, filtros, y la IA (respuestas inválidas, servicio caído y datos
 personales que no deben salir).
@@ -214,6 +214,7 @@ Todas las rutas empiezan por `/api`. Salvo registro, login y catálogos, todas e
 | GET | `/catalogs` | público | Categorías y estados |
 | GET | `/stats` | todos | Cifras del tablero, dentro del alcance del usuario |
 | POST | `/ai/classify` | ciudadano | Sugerencia de categoría, prioridad y resumen |
+| GET | `/ai/status` | autenticado | Indica si la IA está configurada (nunca devuelve la llave) |
 
 Todos los errores tienen la misma forma: `{"detail": "mensaje", "code": "..."}`. Los errores de
 validación incluyen además `fields: [{field, message}]`, y el frontend los muestra junto a
@@ -243,7 +244,15 @@ cada campo.
 - **Datos mínimos:** la lista de usuarios muestra el documento enmascarado (`******0004`) y el
   detalle de una solicitud muestra del ciudadano solo el nombre.
 - **Errores:** un manejador central convierte cualquier excepción en un JSON sin trazas
-  internas.
+  internas, con los mensajes de validación en español (una ruta de API inexistente responde
+  404 en JSON, no la página web).
+- **Cambios simultáneos:** cambiar el estado o asignar bloquea la fila de la solicitud
+  (`SELECT … FOR UPDATE`) hasta terminar la transacción. Si dos personas actúan a la vez, la
+  segunda valida sobre el estado ya actualizado: no se duplican registros en el historial
+  (verificado con 4 peticiones simultáneas: 1 aceptada, 3 rechazadas).
+- **Registro y correos existentes:** a diferencia del login, el registro sí dice si el correo o
+  el documento ya existen (lo pide el requerimiento de evitar duplicados y ayuda al usuario).
+  En producción se mitigaría con límite de intentos y verificación por correo.
 
 ## 10. Funcionalidades opcionales implementadas
 
@@ -252,7 +261,7 @@ cada campo.
 | **Clasificación con IA** (alternativa A) | El ciudadano no siempre sabe si su caso es queja, reclamo o petición. Una mala clasificación retrasa la atención; la prioridad sugerida ayuda a atender primero lo urgente. |
 | **Tablero con estadísticas** | Muestra de un vistazo cuántas solicitudes hay por estado y cuántas siguen **sin funcionario**, que son las que están represadas. |
 | **Docker** | Un solo comando levanta la base de datos y la app, igual en cualquier máquina. La imagen es multi-etapa (compila React y luego instala solo lo necesario para Python) y corre sin permisos de root. |
-| **Pruebas automatizadas** (37) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
+| **Pruebas automatizadas** (43) | Protegen las reglas críticas (permisos, flujo, historial) cuando otro desarrollador cambie el código. |
 | **Paginación y filtros en la URL** | Los listados no cargan todo de golpe, y un filtro se puede compartir o recargar. |
 | **Swagger / OpenAPI** | Documentación viva de la API en `/api/docs`. |
 | **Manejo de errores centralizado** | Todos los errores tienen el mismo formato, y el frontend los muestra por campo. |
@@ -260,7 +269,10 @@ cada campo.
 
 ## 11. Funcionalidad de IA
 
-1. **Modelo:** Google Gemini `gemini-2.5-flash` (configurable con `GEMINI_MODEL`).
+1. **Modelo:** Google Gemini, modelos *flash* (por defecto `gemini-3.6-flash`, con `gemini-3.5-flash` y
+   `gemini-3.5-flash-lite` de respaldo; configurable con `GEMINI_MODEL`). Google retira modelos seguido:
+   si ninguno de los configurados existe ya, la app consulta la lista de modelos disponibles y usa
+   los *flash* vigentes, sin tocar la configuración.
 2. **Comunicación:** el backend llama a la API REST de Gemini con `httpx`, con un tiempo
    límite de 20 s. El navegador nunca habla con Gemini ni ve la llave. La llave va en una
    cabecera HTTP, no en la URL, para que no quede en los logs.
